@@ -43,8 +43,9 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from agents.runner.constants import runner_seed
+from agents.scenarios.goals import goal_distance_mi
 from agents.scenarios.marathon import MARATHON_PHYSICS
-from agents.scenarios.spec import PhysicsSpec
+from agents.scenarios.spec import Destination, PhysicsSpec
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,11 @@ class TickEnv:
         physics: Scenario dynamics. Defaults to ``MARATHON_PHYSICS`` so
             existing callers are unaffected; other scenarios pass their
             own :class:`PhysicsSpec`.
+        goal: Optional terminal destination this agent is heading for.
+            ``None`` (the marathon default) means "run to
+            ``race_distance_mi``", preserving the original behaviour
+            exactly. When set, its ``distance_mi`` becomes the arrival
+            bound and the payload reports ``arrived_at``.
     """
 
     tick: int
@@ -83,6 +89,7 @@ class TickEnv:
     race_distance_mi: float
     session_id: str = "default"
     physics: PhysicsSpec = field(default=MARATHON_PHYSICS)
+    goal: Destination | None = None
 
 
 def step(state: StateLike, env: TickEnv, inner_thought: str = "") -> dict:
@@ -142,10 +149,14 @@ def step(state: StateLike, env: TickEnv, inner_thought: str = "") -> dict:
     effective_velocity = velocity * hydration_factor * wall_factor * fatigue_factor
 
     # --- Distance computation ---
+    # The arrival bound is the goal's position when one is set, else the
+    # course length. For the marathon these are the same value, which is
+    # what keeps the original behaviour byte-identical.
+    arrival_mi = goal_distance_mi(env.goal, env.race_distance_mi)
     effective_mph = effective_velocity * phys.speed_scale
     mi_this_tick = effective_mph / 60.0 * env.minutes_per_tick
     raw_distance = distance + mi_this_tick
-    new_distance = min(raw_distance, env.race_distance_mi)
+    new_distance = min(raw_distance, arrival_mi)
     state["distance"] = new_distance
 
     # --- Hydration depletion ---
@@ -185,22 +196,27 @@ def step(state: StateLike, env: TickEnv, inner_thought: str = "") -> dict:
         collapsed = True
     state["collapsed"] = collapsed
 
-    # --- Finish detection ---
+    # --- Arrival detection ---
+    # ``runner_status`` stays "finished" for any terminal arrival: the
+    # frontend and the simulator's aggregation both key off that exact
+    # string. The specific destination is reported via ``arrived_at``.
     runner_status = "running"
     finish_time = state.get("finish_time_minutes")
     pace = state.get("pace_min_per_mi")
 
-    if new_distance >= env.race_distance_mi and not finished:
+    if new_distance >= arrival_mi and not finished:
         finished = True
         state["finished"] = True
         runner_status = "finished"
-        # Interpolate exact finish time (use raw_distance, before clamping)
-        overshoot = raw_distance - env.race_distance_mi
+        # Interpolate exact arrival time (use raw_distance, pre-clamp)
+        overshoot = raw_distance - arrival_mi
         fraction = 1.0 - (overshoot / mi_this_tick) if mi_this_tick > 0 else 1.0
         finish_time = env.elapsed_minutes - env.minutes_per_tick * (1.0 - fraction)
-        pace = finish_time / env.race_distance_mi if env.race_distance_mi > 0 else 0.0
+        pace = finish_time / arrival_mi if arrival_mi > 0 else 0.0
         state["finish_time_minutes"] = round(finish_time, 2)
         state["pace_min_per_mi"] = round(pace, 2)
+        if env.goal is not None:
+            state["arrived_at"] = env.goal.id
     elif collapsed:
         runner_status = "collapsed"
     elif exhausted:
@@ -214,8 +230,8 @@ def step(state: StateLike, env: TickEnv, inner_thought: str = "") -> dict:
         "runner_status": runner_status,
         "velocity": velocity,
         "effective_velocity": round(effective_velocity, 4),
-        "distance_mi": min(round(new_distance, 3), env.race_distance_mi),
-        "distance": min(round(new_distance, 4), env.race_distance_mi),
+        "distance_mi": min(round(new_distance, 3), arrival_mi),
+        "distance": min(round(new_distance, 4), arrival_mi),
         "water": round(new_water, 1),
         "pace_min_per_mi": pace,
         "elapsed_minutes": env.elapsed_minutes,
@@ -232,5 +248,13 @@ def step(state: StateLike, env: TickEnv, inner_thought: str = "") -> dict:
     wave = state.get("wave_number", 0)
     if env.tick == 1 and wave > 0:
         result["gateway_delay_seconds"] = wave * WAVE_STAGGER_SECONDS
+
+    # Only surfaced for goal-driven scenarios; marathon payloads keep
+    # their original key set exactly.
+    if env.goal is not None:
+        result["goal_id"] = env.goal.id
+        result["goal_kind"] = env.goal.kind
+        if state.get("arrived_at"):
+            result["arrived_at"] = state["arrived_at"]
 
     return result
