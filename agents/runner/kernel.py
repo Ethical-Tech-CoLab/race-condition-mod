@@ -39,21 +39,12 @@ payload. Output is byte-identical to the pre-extraction implementation;
 
 import logging
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
-from agents.runner.constants import (
-    BASE_DEPLETION_RATE,
-    COLLAPSE_THRESHOLD,
-    EXHAUSTION_THRESHOLD,
-    FATIGUE_DEPLETION_GROWTH,
-    HYDRATION_STATION_INTERVAL_MI,
-    HYDRATION_STATION_REFILL,
-    MIN_FATIGUE_FACTOR,
-    NATURAL_FATIGUE_RATE,
-    SPEED_SCALE,
-    runner_seed,
-)
+from agents.runner.constants import runner_seed
+from agents.scenarios.marathon import MARATHON_PHYSICS
+from agents.scenarios.spec import PhysicsSpec
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +72,9 @@ class TickEnv:
             drink decisions are reproducible and independent of call
             order. Defaults to ``"default"`` to match the previous
             ``getattr`` fallback chain exactly.
+        physics: Scenario dynamics. Defaults to ``MARATHON_PHYSICS`` so
+            existing callers are unaffected; other scenarios pass their
+            own :class:`PhysicsSpec`.
     """
 
     tick: int
@@ -88,6 +82,7 @@ class TickEnv:
     elapsed_minutes: float
     race_distance_mi: float
     session_id: str = "default"
+    physics: PhysicsSpec = field(default=MARATHON_PHYSICS)
 
 
 def step(state: StateLike, env: TickEnv, inner_thought: str = "") -> dict:
@@ -108,6 +103,7 @@ def step(state: StateLike, env: TickEnv, inner_thought: str = "") -> dict:
     exhausted = state.get("exhausted", False)
     collapsed = state.get("collapsed", False)
     finished = state.get("finished", False)
+    phys = env.physics
 
     # Already finished or collapsed: no-op, but still report so the
     # simulator's aggregation can see this runner (otherwise
@@ -132,8 +128,8 @@ def step(state: StateLike, env: TickEnv, inner_thought: str = "") -> dict:
         }
 
     # --- Effective velocity with degradation factors ---
-    # 1. Hydration: 50-100% of base speed
-    hydration_factor = 0.5 + 0.5 * (water / 100.0)
+    # 1. Hydration: min_resource_factor..1.0 of base speed
+    hydration_factor = phys.min_resource_factor + (1.0 - phys.min_resource_factor) * (water / 100.0)
 
     # 2. Wall: sharp pace degradation if past wall_mi
     wall_factor = 1.0
@@ -141,12 +137,12 @@ def step(state: StateLike, env: TickEnv, inner_thought: str = "") -> dict:
         wall_factor = 1.0 - state.get("wall_severity", 0.25)
 
     # 3. Natural fatigue: gradual slowdown ~0.2% per tick
-    fatigue_factor = max(MIN_FATIGUE_FACTOR, 1.0 - NATURAL_FATIGUE_RATE * env.tick)
+    fatigue_factor = max(phys.min_fatigue_factor, 1.0 - phys.natural_fatigue_rate * env.tick)
 
     effective_velocity = velocity * hydration_factor * wall_factor * fatigue_factor
 
     # --- Distance computation ---
-    effective_mph = effective_velocity * SPEED_SCALE
+    effective_mph = effective_velocity * phys.speed_scale
     mi_this_tick = effective_mph / 60.0 * env.minutes_per_tick
     raw_distance = distance + mi_this_tick
     new_distance = min(raw_distance, env.race_distance_mi)
@@ -154,15 +150,15 @@ def step(state: StateLike, env: TickEnv, inner_thought: str = "") -> dict:
 
     # --- Hydration depletion ---
     efficiency = state.get("hydration_efficiency", 1.0)
-    base_depletion = BASE_DEPLETION_RATE * mi_this_tick * efficiency
-    fatigue_growth = 1.0 + FATIGUE_DEPLETION_GROWTH * new_distance
+    base_depletion = phys.base_depletion_rate * mi_this_tick * efficiency
+    fatigue_growth = 1.0 + phys.fatigue_depletion_growth * new_distance
     depletion = base_depletion * fatigue_growth
     new_water = max(0.0, water - depletion)
 
     # --- Auto hydration station check (every ~1.86mi) ---
     # Check EVERY station crossed this tick (fast runners may cross 2-3).
-    prev_marker = int(distance / HYDRATION_STATION_INTERVAL_MI)
-    new_marker = int(new_distance / HYDRATION_STATION_INTERVAL_MI)
+    prev_marker = int(distance / phys.resource_station_interval_mi)
+    new_marker = int(new_distance / phys.resource_station_interval_mi)
     if new_marker > prev_marker:
         for marker in range(prev_marker + 1, new_marker + 1):
             # Fresh RNG per station for determinism
@@ -174,18 +170,18 @@ def step(state: StateLike, env: TickEnv, inner_thought: str = "") -> dict:
                 or (new_water > 60.0 and rng.random() < 0.3)
             )
             if should_drink:
-                new_water = min(100.0, new_water + HYDRATION_STATION_REFILL)
+                new_water = min(100.0, new_water + phys.resource_station_refill)
 
     state["water"] = new_water
 
     # --- Exhaustion / collapse ---
-    if new_water < EXHAUSTION_THRESHOLD:
+    if new_water < phys.exhaustion_threshold:
         exhausted = True
     else:
         exhausted = False
     state["exhausted"] = exhausted
 
-    if exhausted and new_water < COLLAPSE_THRESHOLD:
+    if exhausted and new_water < phys.collapse_threshold:
         collapsed = True
     state["collapsed"] = collapsed
 
