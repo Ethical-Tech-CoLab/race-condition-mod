@@ -197,8 +197,15 @@ class PersonaSpec:
         dwell_probability: Chance of pausing at a ``TOUR_STOP``.
         preferred_kinds: Destination kinds this persona favours, in
             order, overriding the global ranking.
-        constraints: Requirements a destination must satisfy, e.g.
-            ``{"step_free": True}`` for mobility-limited agents.
+        constraints: **Hard requirements a destination must satisfy** to
+            be eligible, e.g. ``{"step_free": True}``. Every key here is
+            matched against the destination's own ``constraints``, so
+            this dict must contain only destination-side properties.
+        attributes: Descriptive facts about the persona itself that are
+            *not* destination requirements -- group size, vulnerability
+            stakes, whether they need vehicle assistance for long
+            distances. Kept separate because mixing the two makes every
+            destination fail eligibility.
     """
 
     id: str
@@ -208,6 +215,7 @@ class PersonaSpec:
     dwell_probability: float = 0.0
     preferred_kinds: tuple[DestinationKind, ...] = ()
     constraints: dict = field(default_factory=dict)
+    attributes: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
