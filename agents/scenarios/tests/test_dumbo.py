@@ -30,6 +30,7 @@ from agents.scenarios.dumbo import (
     FERRY_MODELLING_GAPS,
     WALKING_SPEED_SCALE,
 )
+from agents.scenarios.tests.helpers import require
 from agents.scenarios.goals import next_goal_after_closure, select_goal
 from agents.scenarios.spec import DestinationKind
 
@@ -61,7 +62,7 @@ def test_subway_exits_outrank_the_ferry():
 
 
 def test_default_goal_is_high_st():
-    assert select_goal(DUMBO, tick=0).id == "subway-high-st"
+    assert require(select_goal(DUMBO, tick=0)).id == "subway-high-st"
 
 
 def test_ferry_only_available_in_its_service_window():
@@ -100,6 +101,7 @@ def test_destinations_lie_within_the_district():
     for d in DUMBO.destinations:
         assert d.distance_mi is not None
         assert 0.0 <= d.distance_mi <= DUMBO.profile.course_distance_mi
+        assert d.coordinates is not None, f"{d.id} has no coordinates"
         lon, lat = d.coordinates
         assert -74.01 < lon < -73.97
         assert 40.69 < lat < 40.71
@@ -110,26 +112,26 @@ def test_destinations_lie_within_the_district():
 
 def test_mobility_limited_pedestrian_avoids_the_stairs_only_station():
     """High St is stairs-only, so step-free travellers route to York St."""
-    goal = select_goal(DUMBO, tick=0, persona=_PERSONAS["mobility_limited"])
+    goal = require(select_goal(DUMBO, tick=0, persona=_PERSONAS["mobility_limited"]))
     assert goal.id == "subway-york-st"
     assert goal.constraints["step_free"] is True
 
 
 def test_family_with_stroller_also_avoids_high_st():
-    assert select_goal(DUMBO, tick=0, persona=_PERSONAS["family"]).id == "subway-york-st"
+    assert require(select_goal(DUMBO, tick=0, persona=_PERSONAS["family"])).id == "subway-york-st"
 
 
 def test_commuter_takes_the_nearest_subway_and_ignores_the_ferry():
     """Even inside the ferry window, a commuter stays on the subway."""
-    assert select_goal(DUMBO, tick=7, persona=_PERSONAS["commuter"]).id == "subway-high-st"
+    assert require(select_goal(DUMBO, tick=7, persona=_PERSONAS["commuter"])).id == "subway-high-st"
 
 
 def test_tourist_prefers_the_ferry_while_it_is_running():
     """For a visitor the ferry is part of the outing, not a fallback."""
     tourist = _PERSONAS["tourist"]
-    assert select_goal(DUMBO, tick=7, persona=tourist).id == "ferry-dumbo"
+    assert require(select_goal(DUMBO, tick=7, persona=tourist)).id == "ferry-dumbo"
     # Outside the window the tourist falls back to the ranked subways.
-    assert select_goal(DUMBO, tick=0, persona=tourist).id == "subway-high-st"
+    assert require(select_goal(DUMBO, tick=0, persona=tourist)).id == "subway-high-st"
 
 
 def test_persona_weights_are_a_distribution():
@@ -154,15 +156,15 @@ def test_tourists_dwell_far_more_than_commuters():
 def test_closing_high_st_reroutes_to_york_st():
     """The scenario this pack exists to exercise."""
     high = next(d for d in DUMBO.destinations if d.id == "subway-high-st")
-    rerouted = next_goal_after_closure(
-        DUMBO, high, tick=0, exclude_ids=frozenset({"subway-high-st"})
+    rerouted = require(
+        next_goal_after_closure(DUMBO, high, tick=0, exclude_ids=frozenset({"subway-high-st"}))
     )
     assert rerouted.id == "subway-york-st"
 
 
 def test_closing_both_subways_leaves_only_the_ferry_and_only_in_window():
     both_closed = frozenset({"subway-high-st", "subway-york-st"})
-    assert select_goal(DUMBO, tick=7, exclude_ids=both_closed).id == "ferry-dumbo"
+    assert require(select_goal(DUMBO, tick=7, exclude_ids=both_closed)).id == "ferry-dumbo"
     # Outside the ferry window there is genuinely nowhere to go.
     assert select_goal(DUMBO, tick=0, exclude_ids=both_closed) is None
 
@@ -233,7 +235,7 @@ def test_scenario_is_independent_of_global_rng():
 
 def test_ferry_gaps_are_documented():
     """The ferry is knowingly incomplete; keep that visible."""
-    assert FERRY_MODELLING_GAPS
+    assert len(FERRY_MODELLING_GAPS) > 0
     assert any("capacity" in gap for gap in FERRY_MODELLING_GAPS)
     assert any("timetable" in gap or "window" in gap for gap in FERRY_MODELLING_GAPS)
 

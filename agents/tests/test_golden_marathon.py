@@ -49,8 +49,11 @@ import hashlib
 import json
 import os
 import pathlib
+from typing import cast
 
 import pytest
+
+from google.adk.tools.tool_context import ToolContext
 
 from agents.runner.constants import MARATHON_MI
 from agents.runner.initialization import initialize_runner
@@ -124,7 +127,10 @@ async def _compute_trajectory() -> dict:
         ticks: list[dict] = []
         for tick in range(1, MAX_TICKS + 1):
             result = await process_tick(
-                tool_context=ctx,
+                # Deliberate test double: process_tick only touches
+                # ``.state`` and ``.session.id``, so a real ADK context
+                # would add import and runtime cost for no coverage.
+                tool_context=cast(ToolContext, ctx),
                 inner_thought="",
                 minutes_per_tick=MINUTES_PER_TICK,
                 elapsed_minutes=tick * MINUTES_PER_TICK,

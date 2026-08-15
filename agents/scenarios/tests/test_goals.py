@@ -21,6 +21,7 @@ evacuation scenarios depend on.
 
 from agents.runner.constants import MARATHON_MI
 from agents.runner.kernel import TickEnv, step
+from agents.scenarios.tests.helpers import require
 from agents.scenarios.goals import (
     goal_distance_mi,
     has_arrived,
@@ -95,11 +96,11 @@ DUMBO_LIKE = ScenarioSpec(
 
 def test_selects_highest_preference_exit():
     """A/High St outranks F/York St, which outranks the ferry."""
-    assert select_goal(DUMBO_LIKE, tick=0).id == "subway-high-st"
+    assert require(select_goal(DUMBO_LIKE, tick=0)).id == "subway-high-st"
 
 
 def test_excluded_goal_is_skipped():
-    goal = select_goal(DUMBO_LIKE, tick=0, exclude_ids=frozenset({"subway-high-st"}))
+    goal = require(select_goal(DUMBO_LIKE, tick=0, exclude_ids=frozenset({"subway-high-st"})))
     assert goal.id == "subway-york-st"
 
 
@@ -107,7 +108,7 @@ def test_closed_destination_is_not_selected():
     """The ferry only exists inside its window."""
     only_ferry = frozenset({"subway-high-st", "subway-york-st"})
     assert select_goal(DUMBO_LIKE, tick=0, exclude_ids=only_ferry) is None
-    assert select_goal(DUMBO_LIKE, tick=12, exclude_ids=only_ferry).id == "ferry-dumbo"
+    assert require(select_goal(DUMBO_LIKE, tick=12, exclude_ids=only_ferry)).id == "ferry-dumbo"
 
 
 def test_returns_none_when_everything_is_unavailable():
@@ -119,7 +120,7 @@ def test_returns_none_when_everything_is_unavailable():
 def test_persona_constraints_filter_destinations():
     """A step-free requirement rules out the stairs-only entrance."""
     mobility = PersonaSpec(id="mobility_limited", constraints={"step_free": True})
-    assert select_goal(DUMBO_LIKE, tick=0, persona=mobility).id == "subway-york-st"
+    assert require(select_goal(DUMBO_LIKE, tick=0, persona=mobility)).id == "subway-york-st"
 
 
 def test_persona_preferred_kinds_override_scenario_rank():
@@ -128,27 +129,27 @@ def test_persona_preferred_kinds_override_scenario_rank():
         id="ferry_lover",
         preferred_kinds=(DestinationKind.EXIT_FERRY, DestinationKind.EXIT_SUBWAY),
     )
-    assert select_goal(DUMBO_LIKE, tick=12, persona=ferry_lover).id == "ferry-dumbo"
+    assert require(select_goal(DUMBO_LIKE, tick=12, persona=ferry_lover)).id == "ferry-dumbo"
     # Outside the ferry window it falls back to the ranked subway exits.
-    assert select_goal(DUMBO_LIKE, tick=0, persona=ferry_lover).id == "subway-high-st"
+    assert require(select_goal(DUMBO_LIKE, tick=0, persona=ferry_lover)).id == "subway-high-st"
 
 
 def test_selection_is_deterministic():
     """No RNG here: goal choice must not perturb seeded trajectories."""
-    assert [select_goal(DUMBO_LIKE, tick=3).id for _ in range(20)] == ["subway-high-st"] * 20
+    assert [require(select_goal(DUMBO_LIKE, tick=3)).id for _ in range(20)] == ["subway-high-st"] * 20
 
 
 def test_only_terminal_destinations_are_goals():
     """Tour stops are waypoints, never goals."""
     for _ in range(5):
-        assert select_goal(DUMBO_LIKE, tick=0).kind.is_terminal
+        assert require(select_goal(DUMBO_LIKE, tick=0)).kind.is_terminal
 
 
 # --- Closure fall-through ---------------------------------------------
 
 
 def test_goal_is_kept_while_still_open():
-    assert next_goal_after_closure(DUMBO_LIKE, _HIGH_ST, tick=5).id == "subway-high-st"
+    assert require(next_goal_after_closure(DUMBO_LIKE, _HIGH_ST, tick=5)).id == "subway-high-st"
 
 
 def test_closure_falls_through_to_next_rank():
@@ -168,8 +169,8 @@ def test_closure_falls_through_to_next_rank():
         termination=TerminationSpec(terminal_kinds=frozenset({DestinationKind.EXIT_SUBWAY})),
         destinations=(closed_high, _YORK_ST),
     )
-    assert next_goal_after_closure(spec, closed_high, tick=2).id == "subway-high-st"
-    assert next_goal_after_closure(spec, closed_high, tick=9).id == "subway-york-st"
+    assert require(next_goal_after_closure(spec, closed_high, tick=2)).id == "subway-high-st"
+    assert require(next_goal_after_closure(spec, closed_high, tick=9)).id == "subway-york-st"
 
 
 def test_closure_returns_none_when_no_alternative():
@@ -259,7 +260,7 @@ def test_kernel_reports_goal_before_arrival():
 
 
 def test_marathon_selects_its_single_finish_line():
-    assert select_goal(MARATHON, tick=0).id == "finish"
+    assert require(select_goal(MARATHON, tick=0)).id == "finish"
 
 
 def test_marathon_water_stations_are_waypoints_not_goals():
@@ -267,7 +268,7 @@ def test_marathon_water_stations_are_waypoints_not_goals():
     assert water
     assert all(not d.kind.is_terminal for d in water)
     # Waypoints are ordered along the course, not by preference.
-    distances = [d.distance_mi for d in water]
+    distances = [require(d.distance_mi, f"{d.id} position") for d in water]
     assert distances == sorted(distances)
 
 

@@ -37,6 +37,7 @@ import pytest
 
 from agents.runner.kernel import TickEnv, step
 from agents.scenarios.dumbo import DUMBO
+from agents.scenarios.tests.helpers import require
 from agents.scenarios.goals import select_goal
 from agents.scenarios.marathon import MARATHON
 from agents.scenarios.mariupol import MARIUPOL
@@ -211,7 +212,7 @@ def test_agent_reaches_its_goal(scenario):
     assert results[-1]["runner_status"] == "finished", (
         f"{scenario.id}: agent did not reach its goal within the tick budget"
     )
-    assert results[-1]["arrived_at"] == select_goal(scenario, tick=0).id
+    assert results[-1]["arrived_at"] == require(select_goal(scenario, tick=0)).id
 
 
 def test_distance_is_monotonic(scenario):
@@ -220,9 +221,10 @@ def test_distance_is_monotonic(scenario):
 
 
 def test_distance_never_exceeds_the_goal(scenario):
-    goal = select_goal(scenario, tick=0)
+    goal = require(select_goal(scenario, tick=0))
+    goal_mi = require(goal.distance_mi, f"{goal.id} position")
     for r in _run(scenario):
-        assert r["distance"] <= goal.distance_mi + 1e-9
+        assert r["distance"] <= goal_mi + 1e-9
 
 
 def test_resource_stays_in_range(scenario):

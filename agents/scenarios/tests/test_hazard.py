@@ -22,6 +22,7 @@ able to mark an agent "collapsed".
 import random
 
 from agents.runner.kernel import TickEnv, step
+from agents.scenarios.tests.helpers import require
 from agents.scenarios.goals import next_goal_after_closure, select_goal
 from agents.scenarios.hazard import (
     Hazard,
@@ -298,17 +299,17 @@ def test_corridors_outrank_shelters():
 
 def test_corridors_close_and_shelters_remain():
     """Corridors are withdrawn; sheltering stays available."""
-    assert select_goal(MARIUPOL, tick=10).id == "corridor-west"
-    assert select_goal(MARIUPOL, tick=50).id == "shelter-theatre"
+    assert require(select_goal(MARIUPOL, tick=10)).id == "corridor-west"
+    assert require(select_goal(MARIUPOL, tick=50)).id == "shelter-theatre"
 
 
 def test_mobility_limited_evacuees_prefer_shelter():
-    goal = select_goal(MARIUPOL, tick=5, persona=_PERSONAS["mobility_limited"])
+    goal = require(select_goal(MARIUPOL, tick=5, persona=_PERSONAS["mobility_limited"]))
     assert goal.kind == DestinationKind.SHELTER
 
 
 def test_elderly_prefer_shelter_over_a_long_walk():
-    assert select_goal(MARIUPOL, tick=5, persona=_PERSONAS["elderly"]).kind == DestinationKind.SHELTER
+    assert require(select_goal(MARIUPOL, tick=5, persona=_PERSONAS["elderly"])).kind == DestinationKind.SHELTER
 
 
 def test_step_free_requirement_excludes_the_school_basement():
@@ -379,7 +380,7 @@ def test_hazards_do_not_appear_in_kernel_dynamics():
 
 
 def test_modelling_limits_are_declared():
-    assert MODELLING_LIMITS
+    assert len(MODELLING_LIMITS) > 0
     assert any("attrition" in limit or "casualt" in limit for limit in MODELLING_LIMITS)
 
 
