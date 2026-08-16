@@ -10,11 +10,37 @@
 > agents, local setup (`make init` / `make start`), and cloud deployment. This
 > file only describes **what this fork adds** and **what is still in progress**.
 
-[![Deploy frontend to GitHub Pages](https://github.com/yorkerhodes3/race-condition-mod/actions/workflows/pages.yml/badge.svg)](https://github.com/yorkerhodes3/race-condition-mod/actions/workflows/pages.yml)
+[![CI](https://github.com/Ethical-Tech-CoLab/race-condition-mod/actions/workflows/ci.yml/badge.svg)](https://github.com/Ethical-Tech-CoLab/race-condition-mod/actions/workflows/ci.yml)
+[![Deploy frontend to GitHub Pages](https://github.com/Ethical-Tech-CoLab/race-condition-mod/actions/workflows/pages.yml/badge.svg)](https://github.com/Ethical-Tech-CoLab/race-condition-mod/actions/workflows/pages.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-**Live (offline) demo:** https://yorkerhodes3.github.io/race-condition-mod/ —
-static build, no backend, no API keys, no cost.
+## Demos
+
+The **marathon** is the working reference simulation and the regression anchor
+for everything else. The evacuation and pedestrian scenarios are **work in
+progress** — the frontend renders them, but they are not yet driven by the live
+multi-agent engine (see *Work in progress* below).
+
+| Demo | Status | Where |
+| --- | --- | --- |
+| **Marathon — Las Vegas Strip** | ✅ **Live** | **[ethical-tech-colab.github.io/race-condition-mod](https://ethical-tech-colab.github.io/race-condition-mod/)** |
+| Mariupol evacuation twin | 🚧 WIP | `?scenario=mariupol` — renders; not engine-driven |
+| Paris / Barcelona / Venice / NYC | 🚧 WIP | `?scenario=paris` \| `barcelona` \| `venice` \| `nyc` |
+| DUMBO pedestrian | 🚧 WIP | backend scenario pack only — no frontend scenario yet |
+| NYC Marathon route | 🚧 WIP | `?scenario=nyc` — polyline is ~88% of the official distance |
+
+The live demo is a **static build**: no backend, no API keys, no cost. It replays
+recorded runs client-side, so the marathon behaves exactly as it did when
+recorded.
+
+> This fork's demo is built and published from
+> [`Ethical-Tech-CoLab/race-condition-mod`](https://github.com/Ethical-Tech-CoLab/race-condition-mod).
+> The parent fork's build remains at
+> [yorkerhodes3.github.io/race-condition-mod](https://yorkerhodes3.github.io/race-condition-mod/).
+> **Issues and the backlog still live on
+> [`yorkerhodes3/race-condition-mod`](https://github.com/yorkerhodes3/race-condition-mod/issues)** —
+> issues are disabled on this fork, so tracker links below intentionally point
+> there.
 
 ---
 
@@ -65,13 +91,18 @@ operational tracking or targeting tool. See *Fidelity & ethics* below.
 Each scenario is a self-contained pack under
 [`web/frontend/public/scenarios/<id>/`](web/frontend/public/scenarios/):
 
-| Scenario | `?scenario=` | Buildings (real OSM) | Model | Notes |
-| --- | --- | --- | --- | --- |
-| Mariupol | `mariupol` | ETC + OSM centroids | evacuation corridor + damage | retrospective twin |
-| Paris | `paris` | 3,842 | 5 zones / 2 exits / 12k | Marais · Île de la Cité · Bastille |
-| Barcelona | `barcelona` | 4,243 | 5 zones / 2 exits / 12k | Ciutat Vella |
-| Venice | `venice` | 4,438 | 5 zones / 2 exits / 12k | exits at the real land egress |
-| NYC | `nyc` | 2,568 | 5 zones / 2 exits / 12k | + `marathon.geojson` |
+| Scenario | `?scenario=` | Status | Buildings (real OSM) | Model | Notes |
+| --- | --- | --- | --- | --- | --- |
+| Mariupol | `mariupol` | 🚧 WIP | ETC + OSM centroids | evacuation corridor + damage | retrospective twin |
+| Paris | `paris` | 🚧 WIP | 3,842 | 5 zones / 2 exits / 12k | Marais · Île de la Cité · Bastille |
+| Barcelona | `barcelona` | 🚧 WIP | 4,243 | 5 zones / 2 exits / 12k | Ciutat Vella |
+| Venice | `venice` | 🚧 WIP | 4,438 | 5 zones / 2 exits / 12k | exits at the real land egress |
+| NYC | `nyc` | 🚧 WIP | 2,568 | 5 zones / 2 exits / 12k | + `marathon.geojson` |
+
+**WIP means:** the schematic geometry, routes, POIs and camera work render
+today, but no scenario in this table is yet driven by the live multi-agent
+engine — the gateway and tick loop still run the Vegas marathon. Wiring them up
+is the top item under *Work in progress*.
 
 Each pack carries a `README.md` documenting **sources and per-layer fidelity**,
 and every registered city is guarded by
@@ -117,11 +148,11 @@ A scenario is data, not a code branch. [`agents/scenarios/spec.py`](agents/scena
 defines the frozen contract — physics constants, seeded profile distributions,
 personas, destinations, and a termination rule — and each pack supplies values:
 
-| Pack | Terminal destinations | Distinguishing feature |
-| --- | --- | --- |
-| [`marathon.py`](agents/scenarios/marathon.py) | one finish line | the regression anchor; every value imported from `runner/constants.py` |
-| [`dumbo.py`](agents/scenarios/dumbo.py) | A/C High St → F York St → ferry | walking pace; accessibility routing; a schedule-constrained ferry |
-| [`mariupol.py`](agents/scenarios/mariupol.py) | corridor exits → shelters | hazards that close exits; household personas |
+| Pack | Status | Terminal destinations | Distinguishing feature |
+| --- | --- | --- | --- |
+| [`marathon.py`](agents/scenarios/marathon.py) | ✅ reference | one finish line | the regression anchor; every value imported from `runner/constants.py` |
+| [`dumbo.py`](agents/scenarios/dumbo.py) | 🚧 WIP | A/C High St → F York St → ferry | walking pace; accessibility routing; a schedule-constrained ferry |
+| [`mariupol.py`](agents/scenarios/mariupol.py) | 🚧 WIP | corridor exits → shelters | hazards that close exits; household personas |
 
 The unifying abstraction is the **destination**: a marathon water stop, a subway
 entrance, a shelter, and an aid post are one type, differing by whether they end
@@ -321,8 +352,8 @@ Vegas marathon demo render-identical.
 - **Run the full stack (backend, agents, cloud):** follow
   [README.upstream.md](README.upstream.md).
 - **Just see the offline scenarios:** open the
-  [live demo](https://yorkerhodes3.github.io/race-condition-mod/) or run the
-  frontend (`web/frontend`) with `npm ci && npm start`.
+  [live demo](https://ethical-tech-colab.github.io/race-condition-mod/) or run
+  the frontend (`web/frontend`) with `npm ci && npm start`.
 - **Understand the design:** [docs/DESIGN-CHANGES-SITE-Purpose.md](docs/DESIGN-CHANGES-SITE-Purpose.md),
   [docs/CONSOLE-REFERENCE.md](docs/CONSOLE-REFERENCE.md), and each pack's `README.md`.
 - **Change agent behaviour:** start at *How the simulation works* above, then
