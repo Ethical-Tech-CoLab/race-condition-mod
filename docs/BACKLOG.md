@@ -53,7 +53,8 @@ just before the finish/wrap-up sequence.
 ## VIS-1 — Building visual fidelity vs. a Google Earth view (data-limited)
 
 **Status:** open · enhancement · data-limited (needs a licensed source)
-**Tracking:** [yorkerhodes3/race-condition-mod#20](https://github.com/yorkerhodes3/race-condition-mod/issues/20)
+**Tracking:** [Ethical-Tech-CoLab/race-condition-mod#2](https://github.com/Ethical-Tech-CoLab/race-condition-mod/issues/2)
+(migrated from [yorkerhodes3/race-condition-mod#20](https://github.com/yorkerhodes3/race-condition-mod/issues/20))
 **Raised:** 2026-07-31, after the city case-study scenarios landed
 (Paris `82b848f`, Barcelona `d3a347b`, Venice `5cf4b42`, NYC `c7ce359`).
 

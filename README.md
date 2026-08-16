@@ -34,13 +34,12 @@ recorded runs client-side, so the marathon behaves exactly as it did when
 recorded.
 
 > This fork's demo is built and published from
-> [`Ethical-Tech-CoLab/race-condition-mod`](https://github.com/Ethical-Tech-CoLab/race-condition-mod).
+> [`Ethical-Tech-CoLab/race-condition-mod`](https://github.com/Ethical-Tech-CoLab/race-condition-mod),
+> and **issues are tracked here**
+> ([tracker](https://github.com/Ethical-Tech-CoLab/race-condition-mod/issues)).
 > The parent fork's build remains at
-> [yorkerhodes3.github.io/race-condition-mod](https://yorkerhodes3.github.io/race-condition-mod/).
-> **Issues and the backlog still live on
-> [`yorkerhodes3/race-condition-mod`](https://github.com/yorkerhodes3/race-condition-mod/issues)** —
-> issues are disabled on this fork, so tracker links below intentionally point
-> there.
+> [yorkerhodes3.github.io/race-condition-mod](https://yorkerhodes3.github.io/race-condition-mod/);
+> its issues were migrated here and closed there.
 
 ---
 
@@ -305,7 +304,7 @@ threads, roughly in priority order:
   assumptions (`distance / 42195`, a `runner_autopilot` telemetry filter), so
   backend scenarios cannot yet render.
 - **Building visual fidelity** — tracked as
-  [**VIS-1 (#20)**](https://github.com/yorkerhodes3/race-condition-mod/issues/20)
+  [**VIS-1 (#2)**](https://github.com/Ethical-Tech-CoLab/race-condition-mod/issues/2)
   and in [docs/BACKLOG.md](docs/BACKLOG.md): real OSM heights → footprint
   polygons → satellite drape → photorealistic 3D tiles. Today buildings are real
   footprints with **hashed heights only** (no facade/satellite texture).
@@ -314,8 +313,8 @@ threads, roughly in priority order:
   would close the gap.
 
 See [docs/BACKLOG.md](docs/BACKLOG.md) and the
-[issue tracker](https://github.com/yorkerhodes3/race-condition-mod/issues) for
-the running list.
+[issue tracker](https://github.com/Ethical-Tech-CoLab/race-condition-mod/issues)
+for the running list.
 
 ## Fidelity & ethics
 
