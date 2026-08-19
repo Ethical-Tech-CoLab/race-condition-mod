@@ -14,24 +14,12 @@
 
 import json
 import logging
-import random
 
 from google.adk.tools.tool_context import ToolContext
 
 from agents.utils.redis_pool import get_shared_redis_client
 
-from agents.runner.constants import (
-    BASE_DEPLETION_RATE,
-    COLLAPSE_THRESHOLD,
-    EXHAUSTION_THRESHOLD,
-    FATIGUE_DEPLETION_GROWTH,
-    HYDRATION_STATION_INTERVAL_MI,
-    HYDRATION_STATION_REFILL,
-    MIN_FATIGUE_FACTOR,
-    NATURAL_FATIGUE_RATE,
-    SPEED_SCALE,
-    runner_seed,
-)
+from agents.runner.kernel import TickEnv, step
 
 logger = logging.getLogger(__name__)
 
@@ -168,140 +156,19 @@ async def process_tick(
             ),
         }
 
-    velocity = state.get("velocity", 0.0)
-    distance = state.get("distance", 0.0)
-    water = state.get("water", 100.0)
-    exhausted = state.get("exhausted", False)
-    collapsed = state.get("collapsed", False)
-    finished = state.get("finished", False)
-
-    # Already finished or collapsed: no-op
-    if finished or collapsed:
-        return {
-            "status": "success",
-            "tick": tick,
-            "runner_status": "finished" if finished else "collapsed",
-            "velocity": velocity,
-            "effective_velocity": 0.0,
-            "distance_mi": distance,
-            "distance": round(distance, 4),
-            "water": water,
-            "pace_min_per_mi": state.get("pace_min_per_mi"),
-            "elapsed_minutes": elapsed_minutes,
-            "mi_this_tick": 0.0,
-            "finish_time_minutes": state.get("finish_time_minutes"),
-            "exhausted": exhausted,
-            "collapsed": collapsed,
-            "inner_thought": inner_thought,
-        }
-
-    # --- Effective velocity with degradation factors ---
-    # 1. Hydration: 50-100% of base speed
-    hydration_factor = 0.5 + 0.5 * (water / 100.0)
-
-    # 2. Wall: sharp pace degradation if past wall_mi
-    wall_factor = 1.0
-    if state.get("will_hit_wall") and distance > state.get("wall_mi", 18.6411):
-        wall_factor = 1.0 - state.get("wall_severity", 0.25)
-
-    # 3. Natural fatigue: gradual slowdown ~0.2% per tick
-    fatigue_factor = max(MIN_FATIGUE_FACTOR, 1.0 - NATURAL_FATIGUE_RATE * tick)
-
-    effective_velocity = velocity * hydration_factor * wall_factor * fatigue_factor
-
-    # --- Distance computation ---
-    effective_mph = effective_velocity * SPEED_SCALE
-    mi_this_tick = effective_mph / 60.0 * minutes_per_tick
-    raw_distance = distance + mi_this_tick
-    new_distance = min(raw_distance, race_distance_mi)
-    state["distance"] = new_distance
-
-    # --- Hydration depletion ---
-    efficiency = state.get("hydration_efficiency", 1.0)
-    base_depletion = BASE_DEPLETION_RATE * mi_this_tick * efficiency
-    fatigue_growth = 1.0 + FATIGUE_DEPLETION_GROWTH * new_distance
-    depletion = base_depletion * fatigue_growth
-    new_water = max(0.0, water - depletion)
-
-    # --- Auto hydration station check (every ~1.86mi) ---
-    # Check EVERY station crossed this tick (fast runners may cross 2-3).
-    prev_marker = int(distance / HYDRATION_STATION_INTERVAL_MI)
-    new_marker = int(new_distance / HYDRATION_STATION_INTERVAL_MI)
-    if new_marker > prev_marker:
-        session_id = getattr(getattr(tool_context, "session", None), "id", "default")
-        for marker in range(prev_marker + 1, new_marker + 1):
-            # Fresh RNG per station for determinism
-            rng = random.Random(runner_seed(session_id, marker))
-            should_drink = (
-                new_water <= 40.0
-                or exhausted
-                or (new_water <= 60.0 and rng.random() < 0.5)
-                or (new_water > 60.0 and rng.random() < 0.3)
-            )
-            if should_drink:
-                new_water = min(100.0, new_water + HYDRATION_STATION_REFILL)
-
-    state["water"] = new_water
-
-    # --- Exhaustion / collapse ---
-    if new_water < EXHAUSTION_THRESHOLD:
-        exhausted = True
-    else:
-        exhausted = False
-    state["exhausted"] = exhausted
-
-    if exhausted and new_water < COLLAPSE_THRESHOLD:
-        collapsed = True
-    state["collapsed"] = collapsed
-
-    # --- Finish detection ---
-    runner_status = "running"
-    finish_time = state.get("finish_time_minutes")
-    pace = state.get("pace_min_per_mi")
-
-    if new_distance >= race_distance_mi and not finished:
-        finished = True
-        state["finished"] = True
-        runner_status = "finished"
-        # Interpolate exact finish time (use raw_distance, before clamping)
-        overshoot = raw_distance - race_distance_mi
-        fraction = 1.0 - (overshoot / mi_this_tick) if mi_this_tick > 0 else 1.0
-        finish_time = elapsed_minutes - minutes_per_tick * (1.0 - fraction)
-        pace = finish_time / race_distance_mi if race_distance_mi > 0 else 0.0
-        state["finish_time_minutes"] = round(finish_time, 2)
-        state["pace_min_per_mi"] = round(pace, 2)
-    elif collapsed:
-        runner_status = "collapsed"
-    elif exhausted:
-        runner_status = "exhausted"
-
-    state["runner_status"] = runner_status
-
-    result = {
-        "status": "success",
-        "tick": tick,
-        "runner_status": runner_status,
-        "velocity": velocity,
-        "effective_velocity": round(effective_velocity, 4),
-        "distance_mi": min(round(new_distance, 3), race_distance_mi),
-        "distance": min(round(new_distance, 4), race_distance_mi),
-        "water": round(new_water, 1),
-        "pace_min_per_mi": pace,
-        "elapsed_minutes": elapsed_minutes,
-        "mi_this_tick": round(mi_this_tick, 3),
-        "finish_time_minutes": finish_time,
-        "exhausted": exhausted,
-        "collapsed": collapsed,
-        "inner_thought": inner_thought,
-        "wave_number": state.get("wave_number", 0),
-    }
-
-    # Stagger the first movement tick's gateway emission by wave so the
-    # frontend sees runners start in waves (~2s between each wave).
-    WAVE_STAGGER_SECONDS = 2.0
-    wave = state.get("wave_number", 0)
-    if tick == 1 and wave > 0:
-        result["gateway_delay_seconds"] = wave * WAVE_STAGGER_SECONDS
+    # --- Physics: delegate to the pure kernel ---
+    # The kernel owns all dynamics (velocity degradation, distance,
+    # hydration, exhaustion/collapse, finish detection) and mutates
+    # ``state`` in place. This function keeps only the ADK/Redis
+    # plumbing. See agents/runner/kernel.py.
+    env = TickEnv(
+        tick=tick,
+        minutes_per_tick=minutes_per_tick,
+        elapsed_minutes=elapsed_minutes,
+        race_distance_mi=race_distance_mi,
+        session_id=getattr(getattr(tool_context, "session", None), "id", "default"),
+    )
+    result = step(state, env, inner_thought)
 
     # --- Direct-write to collector buffer (bypass PubSub bottleneck) ---
     if collector_buffer_key:
