@@ -10,6 +10,10 @@ find documentation for the area you care about.
 How agents communicate and coordinate.
 
 - [Agent Architecture](agent_architecture.md): topology of the ADK/A2A network.
+- [Runner Decision Model](runner_decision_model.md): how an agent decides
+  anything — the four layers, what the LLM actually controls, the seams used to
+  generalise the engine across scenarios, and why per-agent inference does not
+  scale.
 - [Communication Protocol](communication_protocol.md): wire schema, handshake,
   and multi-session routing.
 - [Route Planning](route_planning.md): GIS-based marathon route generation.

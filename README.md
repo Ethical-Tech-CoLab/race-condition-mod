@@ -118,6 +118,12 @@ Understanding this is the prerequisite for changing what the simulation is
 four-layer system in which **code owns the dynamics and the model owns the
 narration**.
 
+> **Full analysis:**
+> [docs/architecture/runner_decision_model.md](docs/architecture/runner_decision_model.md)
+> — how an agent actually decides anything, which parts are the model's and which
+> are code's, the seams used to generalise it, and why per-agent inference does
+> not scale. This section is the short version.
+
 | Layer | Decides | Where | LLM? |
 | --- | --- | --- | --- |
 | **L0 Identity** | who this agent is — ability, frailty, starting state | [`agents/runner/initialization.py`](agents/runner/initialization.py) | No — seeded from `sha256(session_id)` |
@@ -355,6 +361,8 @@ Vegas marathon demo render-identical.
   the frontend (`web/frontend`) with `npm ci && npm start`.
 - **Understand the design:** [docs/DESIGN-CHANGES-SITE-Purpose.md](docs/DESIGN-CHANGES-SITE-Purpose.md),
   [docs/CONSOLE-REFERENCE.md](docs/CONSOLE-REFERENCE.md), and each pack's `README.md`.
-- **Change agent behaviour:** start at *How the simulation works* above, then
-  [`agents/scenarios/spec.py`](agents/scenarios/spec.py) (the contract) and
+- **Change agent behaviour:** start at *How the simulation works* above, then the
+  full analysis in
+  [docs/architecture/runner_decision_model.md](docs/architecture/runner_decision_model.md),
+  then [`agents/scenarios/spec.py`](agents/scenarios/spec.py) (the contract) and
   [`agents/runner/kernel.py`](agents/runner/kernel.py) (the dynamics).
